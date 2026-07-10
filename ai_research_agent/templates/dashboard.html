@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - AI Research Assistant Agent{% endblock %}
+{% block page_title %}Dashboard Overview{% endblock %}
+
+{% block head %}
+<!-- Chart.js CDN for beautiful analytics visualizers -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<!-- Welcome Banner -->
+<div class="welcome-banner">
+    <div class="welcome-text-wrapper">
+        <h2>Welcome back, <span class="gradient-text">{{ g.user['username'] }}</span>!</h2>
+        <p>What would you like the Research Agent to analyze today?</p>
+    </div>
+    
+    <!-- Quick Search bar -->
+    <form action="{{ url_for('agent.index') }}" method="GET" class="quick-search-form">
+        <div class="search-input-container">
+            <i data-lucide="search" class="search-icon"></i>
+            <input type="text" name="new_topic" placeholder="Try 'Cyber Security' or 'Machine Learning'..." required>
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="play-circle"></i>
+                <span>Launch Agent</span>
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Stats Grid -->
+<div class="stats-grid">
+    <div class="stat-card animate-card">
+        <div class="stat-icon-wrapper blue">
+            <i data-lucide="file-search"></i>
+        </div>
+        <div class="stat-details">
+            <span class="stat-label">Total Researches</span>
+            <span class="stat-val">{{ total_searches }}</span>
+        </div>
+    </div>
+    
+    <div class="stat-card animate-card">
+        <div class="stat-icon-wrapper purple">
+            <i data-lucide="map"></i>
+        </div>
+        <div class="stat-details">
+            <span class="stat-label">Roadmaps Generated</span>
+            <span class="stat-val">{{ active_roadmaps }}</span>
+        </div>
+    </div>
+    
+    <div class="stat-card animate-card">
+        <div class="stat-icon-wrapper green">
+            <i data-lucide="shield-check"></i>
+        </div>
+        <div class="stat-details">
+            <span class="stat-label">Agent Engine Status</span>
+            <span class="stat-val">Active</span>
+        </div>
+    </div>
+</div>
+
+<!-- Analytics and Recent Searches split row -->
+<div class="dashboard-split-row">
+    <!-- Search frequency Chart card -->
+    <div class="dashboard-card chart-card">
+        <div class="card-header">
+            <h3><i data-lucide="trending-up"></i> Weekly Activity</h3>
+        </div>
+        <div class="card-body">
+            <div class="chart-container" style="position: relative; height:240px; width:100%">
+                <canvas id="activityChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick settings card -->
+    <div class="dashboard-card settings-card">
+        <div class="card-header">
+            <h3><i data-lucide="settings"></i> Quick Settings</h3>
+        </div>
+        <div class="card-body settings-list">
+            <div class="settings-item">
+                <div class="settings-meta">
+                    <span class="settings-title">Application Theme</span>
+                    <span class="settings-desc">Switch between Light and Dark visual modes</span>
+                </div>
+                <div class="theme-switch-wrapper">
+                    <button class="btn btn-secondary btn-sm" onclick="changeTheme('light')" id="lightThemeBtn">
+                        <i data-lucide="sun"></i> Light
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="changeTheme('dark')" id="darkThemeBtn">
+                        <i data-lucide="moon"></i> Dark
+                    </button>
+                </div>
+            </div>
+            
+            <div class="settings-item">
+                <div class="settings-meta">
+                    <span class="settings-title">Clear History</span>
+                    <span class="settings-desc">Deletes all previous search records and chat messages</span>
+                </div>
+                <button class="btn btn-danger btn-sm" onclick="confirmDeleteHistory()" id="clearHistoryBtn">
+                    <i data-lucide="trash-2"></i> Clear History
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- History & Recent topics section -->
+<div class="dashboard-card history-section">
+    <div class="card-header">
+        <h3><i data-lucide="history"></i> Recent Research Reports</h3>
+    </div>
+    <div class="card-body">
+        {% if recent_searches %}
+            <div class="history-grid">
+                {% for search in recent_searches %}
+                    <div class="history-item animate-card">
+                        <div class="history-meta">
+                            <span class="history-topic">{{ search['topic'] }}</span>
+                            <span class="history-date">{{ search['created_at'] }}</span>
+                        </div>
+                        <div class="history-summary">
+                            {% if search['summary'] %}
+                                {{ search['summary']|striptags|truncate(120) }}
+                            {% else %}
+                                Analysis complete. Click open to read details.
+                            {% endif %}
+                        </div>
+                        <div class="history-actions">
+                            <a href="{{ url_for('agent.index', id=search['id']) }}" class="btn btn-secondary btn-sm">
+                                <i data-lucide="file-text"></i> Open Report
+                            </a>
+                            <a href="{{ url_for('agent.download_pdf', search_id=search['id']) }}" class="btn btn-secondary btn-sm btn-icon-only" title="Download PDF">
+                                <i data-lucide="download"></i>
+                            </a>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-history-state">
+                <i data-lucide="search" class="empty-icon"></i>
+                <p>No research reports generated yet. Enter a topic in the search bar above to launch your first agent!</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Init Chart.js activity graph
+    const rawLabels = JSON.parse('{{ chart_labels | safe }}');
+    const rawData = JSON.parse('{{ chart_data | safe }}');
+    
+    document.addEventListener("DOMContentLoaded", () => {
+        // Highlight active theme button in dashboard settings
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+        updateSettingsThemeButtons(currentTheme);
+
+        const ctx = document.getElementById('activityChart').getContext('2d');
+        
+        // Define theme-dependent colors
+        const gridColor = currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+        const labelColor = currentTheme === 'dark' ? '#94a3b8' : '#64748b';
+        
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: rawLabels,
+                datasets: [{
+                    label: 'Researches Run',
+                    data: rawData,
+                    borderColor: '#6366f1',
+                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: true,
+                    pointBackgroundColor: '#818cf8',
+                    pointBorderColor: '#fff',
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: gridColor
+                        },
+                        ticks: {
+                            color: labelColor,
+                            font: {
+                                family: 'Outfit',
+                                size: 11
+                            }
+                        }
+                    },
+                    y: {
+                        grid: {
+                            color: gridColor
+                        },
+                        ticks: {
+                            color: labelColor,
+                            font: {
+                                family: 'Outfit',
+                                size: 11
+                            },
+                            stepSize: 1,
+                            precision: 0
+                        },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    });
+
+    function updateSettingsThemeButtons(theme) {
+        const lightBtn = document.getElementById('lightThemeBtn');
+        const darkBtn = document.getElementById('darkThemeBtn');
+        if (lightBtn && darkBtn) {
+            if (theme === 'light') {
+                lightBtn.classList.add('active');
+                darkBtn.classList.remove('active');
+            } else {
+                darkBtn.classList.add('active');
+                lightBtn.classList.remove('active');
+            }
+        }
+    }
+
+    // Toggle theme via Ajax to update server session and persist style
+    function changeTheme(theme) {
+        fetch("{{ url_for('dashboard.toggle_theme') }}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ theme: theme })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'success') {
+                document.documentElement.setAttribute('data-theme', theme);
+                updateSettingsThemeButtons(theme);
+                showToast("Theme switched to " + theme + " mode.", "info");
+                
+                // Re-draw chart grids if necessary, or just reload to match theme styling perfectly
+                setTimeout(() => window.location.reload(), 300);
+            }
+        })
+        .catch(err => {
+            console.error("Theme toggle error", err);
+        });
+    }
+
+    function confirmDeleteHistory() {
+        if(confirm("Are you sure you want to permanently delete all your research history? This cannot be undone.")) {
+            const btn = document.getElementById('clearHistoryBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="spinner"></i> Deleting...';
+            
+            fetch("{{ url_for('dashboard.clear_history') }}", {
+                method: "POST"
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.status === 'success') {
+                    showToast(data.message, "success");
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    showToast("Error clearing history", "error");
+                    btn.disabled = false;
+                    btn.innerHTML = '<i data-lucide="trash-2"></i> Clear History';
+                    lucide.createIcons();
+                }
+            })
+            .catch(err => {
+                console.error("Clear history error", err);
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="trash-2"></i> Clear History';
+                lucide.createIcons();
+            });
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+
+{% block title %}AI Research Agent - Workspace{% endblock %}
+{% block page_title %}Research Agent Workspace{% endblock %}
+
+{% block content %}
+<div class="agent-workspace-layout">
+    <!-- Left Column: Input, Progress, Content Tabs -->
+    <div class="agent-main-panel">
+        
+        <!-- Search Form (Visible initially or when starting new) -->
+        <div class="agent-search-card" id="searchCard" {% if report %}style="display:none;"{% endif %}>
+            <h3>Launch New Research Agent</h3>
+            <p>Enter any topic below. The agent will run 8 sequential steps to produce a structured, high-fidelity research study.</p>
+            <div class="search-form-group">
+                <input type="text" id="topicInput" placeholder="e.g. Cyber Security, Machine Learning, DBMS..." value="{{ request.args.get('new_topic', '') }}">
+                <button class="btn btn-primary" id="launchAgentBtn" onclick="startResearchStream()">
+                    <i data-lucide="play-circle"></i>
+                    <span>Execute Agent</span>
+                </button>
+            </div>
+            
+            <div class="suggested-queries">
+                <span>Suggestions:</span>
+                <button class="badge-btn" onclick="setTopic('Cyber Security')">Cyber Security</button>
+                <button class="badge-btn" onclick="setTopic('Machine Learning')">Machine Learning</button>
+                <button class="badge-btn" onclick="setTopic('DBMS')">DBMS</button>
+                <button class="badge-btn" onclick="setTopic('Cloud Computing')">Cloud Computing</button>
+            </div>
+        </div>
+
+        <!-- Progress Timeline (Visible during streaming) -->
+        <div class="agent-progress-card" id="progressCard" style="display:none;">
+            <div class="progress-card-header">
+                <h3><i data-lucide="cpu" class="spinning-icon"></i> Researching: <span id="currentTargetTopic">...</span></h3>
+                <span class="progress-pct" id="progressPct">0%</span>
+            </div>
+            
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+            </div>
+            
+            <div class="agent-timeline">
+                <div class="timeline-step" id="step1" data-step="1">
+                    <div class="step-indicator"><i data-lucide="circle"></i></div>
+                    <div class="step-text">
+                        <span class="step-title">Step 1: Understand Query</span>
+                        <span class="step-status" id="step1Status">Pending...</span>
+                    </div>
+                </div>
+                <div class="timeline-step" id="step2" data-step="2">
+                    <div class="step-indicator"><i data-lucide="circle"></i></div>
+                    <div class="step-text">
+                        <span class="step-title">Step 2: Generate Explanation</span>
+                        <span class="step-status" id="step2Status">Pending...</span>
+                    </div>
+                </div>
+                <div class="timeline-step" id="step3" data-step="3">
+                    <div class="step-indicator"><i data-lucide="circle"></i></div>
+                    <div class="step-text">
+                        <span class="step-title">Step 3: Generate Key Points</span>
+                        <span class="step-status" id="step3Status">Pending...</span>
+                    </div>
+                </div>
+                <div class="timeline-step" id="step4" data-step="4">
+                    <div class="step-indicator"><i data-lucide="circle"></i></div>
+                    <div class="step-text">
+                        <span class="step-title">Step 4: Generate Interview Prep</span>
+                        <span class="step-status" id="step4Status">Pending...</span>
+                    </div>
+                </div>
+                <div class="timeline-step" id="step5" data-step="5">
+                    <div class="step-indicator"><i data-lucide="circle"></i></div>
+                    <div class="step-text">
+                        <span class="step-title">Step 5: Generate Practice Quiz</span>
+                        <span class="step-status" id="step5Status">Pending...</span>
+                    </div>
+                </div>
+                <div class="timeline-step" id="step6" data-step="6">
+                    <div class="step-indicator"><i data-lucide="circle"></i></div>
+                    <div class="step-text">
+                        <span class="step-title">Step 6: Generate Summary</span>
+                        <span class="step-status" id="step6Status">Pending...</span>
+                    </div>
+                </div>
+                <div class="timeline-step" id="step7" data-step="7">
+                    <div class="step-indicator"><i data-lucide="circle"></i></div>
+                    <div class="step-text">
+                        <span class="step-title">Step 7: Learning Roadmap</span>
+                        <span class="step-status" id="step7Status">Pending...</span>
+                    </div>
+                </div>
+                <div class="timeline-step" id="step8" data-step="8">
+                    <div class="step-indicator"><i data-lucide="circle"></i></div>
+                    <div class="step-text">
+                        <span class="step-title">Step 8: Suggest References</span>
+                        <span class="step-status" id="step8Status">Pending...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Report Presentation Workspace -->
+        <div class="report-workspace-card" id="reportWorkspaceCard" {% if not report %}style="display:none;"{% endif %}>
+            <div class="workspace-header">
+                <div class="topic-meta">
+                    <span class="meta-label">Research Topic</span>
+                    <h2 class="report-topic" id="displayReportTopic">{{ search['topic'] if search else '' }}</h2>
+                </div>
+                <div class="workspace-actions">
+                    <a href="#" class="btn btn-secondary btn-sm" id="restartSearchBtn" onclick="resetWorkspace()">
+                        <i data-lucide="refresh-cw"></i> New Research
+                    </a>
+                    <a href="{{ url_for('agent.download_pdf', search_id=search_id or 0) }}" class="btn btn-primary btn-sm" id="downloadPdfBtn">
+                        <i data-lucide="download"></i> Download PDF
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Navigation Tabs -->
+            <div class="workspace-tabs-wrapper">
+                <button class="tab-link active" onclick="switchTab(event, 'tabExplanation')"><i data-lucide="book-open"></i> Explanation</button>
+                <button class="tab-link" onclick="switchTab(event, 'tabKeyPoints')"><i data-lucide="check-circle"></i> Key Points</button>
+                <button class="tab-link" onclick="switchTab(event, 'tabRoadmap')"><i data-lucide="map"></i> Roadmap</button>
+                <button class="tab-link" onclick="switchTab(event, 'tabInterview')"><i data-lucide="award"></i> Interview Prep</button>
+                <button class="tab-link" onclick="switchTab(event, 'tabQuiz')"><i data-lucide="help-circle"></i> Quiz</button>
+                <button class="tab-link" onclick="switchTab(event, 'tabSummary')"><i data-lucide="file-text"></i> Summary</button>
+                <button class="tab-link" onclick="switchTab(event, 'tabReferences')"><i data-lucide="link"></i> References</button>
+            </div>
+            
+            <!-- Tab Contents -->
+            <div class="workspace-tab-contents">
+                
+                <div id="tabExplanation" class="tab-pane active">
+                    <div class="pane-action-bar">
+                        <button class="btn btn-secondary btn-xs" onclick="copyPaneText('tabExplanation')"><i data-lucide="copy"></i> Copy Section</button>
+                    </div>
+                    <div class="pane-rich-content text-flow" id="explanationContent">
+                        {{ report['explanation']|safe if report else '' }}
+                    </div>
+                </div>
+                
+                <div id="tabKeyPoints" class="tab-pane">
+                    <div class="pane-action-bar">
+                        <button class="btn btn-secondary btn-xs" onclick="copyPaneText('tabKeyPoints')"><i data-lucide="copy"></i> Copy Section</button>
+                    </div>
+                    <div class="pane-rich-content text-flow" id="keyPointsContent">
+                        {{ report['key_points']|safe if report else '' }}
+                    </div>
+                </div>
+                
+                <div id="tabRoadmap" class="tab-pane">
+                    <div class="pane-action-bar">
+                        <button class="btn btn-secondary btn-xs" onclick="copyPaneText('tabRoadmap')"><i data-lucide="copy"></i> Copy Section</button>
+                    </div>
+                    <div class="pane-rich-content roadmap-timeline" id="roadmapContent">
+                        {{ report['roadmap']|safe if report else '' }}
+                    </div>
+                </div>
+                
+                <div id="tabInterview" class="tab-pane">
+                    <div class="pane-action-bar">
+                        <button class="btn btn-secondary btn-xs" onclick="copyPaneText('tabInterview')"><i data-lucide="copy"></i> Copy Section</button>
+                    </div>
+                    <div class="pane-rich-content qa-flow" id="interviewContent">
+                        {{ report['interview_questions']|safe if report else '' }}
+                    </div>
+                </div>
+                
+                <div id="tabQuiz" class="tab-pane">
+                    <div class="pane-rich-content quiz-flow" id="quizContent">
+                        <!-- Custom script renders this interactively -->
+                    </div>
+                </div>
+                
+                <div id="tabSummary" class="tab-pane">
+                    <div class="pane-action-bar">
+                        <button class="btn btn-secondary btn-xs" onclick="copyPaneText('tabSummary')"><i data-lucide="copy"></i> Copy Section</button>
+                    </div>
+                    <div class="pane-rich-content text-flow" id="summaryContent">
+                        {{ report['summary']|safe if report else '' }}
+                    </div>
+                </div>
+                
+                <div id="tabReferences" class="tab-pane">
+                    <div class="pane-action-bar">
+                        <button class="btn btn-secondary btn-xs" onclick="copyPaneText('tabReferences')"><i data-lucide="copy"></i> Copy Section</button>
+                    </div>
+                    <div class="pane-rich-content text-flow" id="referencesContent">
+                        {{ report['references_data']|safe if report else '' }}
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Right Column: ChatGPT-Style Chat Follow-Up Panel -->
+    <div class="agent-chat-panel" id="chatPanel" {% if not report %}style="display:none;"{% endif %}>
+        <div class="chat-header">
+            <h3><i data-lucide="message-square"></i> Follow-up Chat</h3>
+            <p>Ask follow-up questions about this topic</p>
+        </div>
+        
+        <div class="chat-messages-container" id="chatMessagesContainer">
+            <div class="chat-message assistant-message">
+                <div class="message-bubble">
+                    <p>I have compiled the research report for you. Feel free to ask any specific clarification or deep-dive questions, and I will assist you!</p>
+                </div>
+            </div>
+            {% for msg in chat_history %}
+                <div class="chat-message {{ msg['role'] }}-message">
+                    <div class="message-bubble">
+                        {{ msg['content']|safe }}
+                    </div>
+                </div>
+            {% endfor %}
+            <div class="chat-message assistant-message" id="chatTypingIndicator" style="display:none;">
+                <div class="message-bubble typing-bubble">
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chat-input-wrapper">
+            <input type="text" id="chatInput" placeholder="Ask follow-up details..." onkeydown="handleChatKeydown(event)">
+            <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()">
+                <i data-lucide="send"></i>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Carry over values from flask
+    window.currentSearchId = {% if search_id %}{{ search_id }}{% else %}null{% endif %};
+    window.rawQuizData = {% if report and report['quiz'] %}{{ report['quiz']|safe }}{% else %}null{% endif %};
+</script>
+<!-- Agent workspace specialized javascript logic -->
+<script src="{{ url_for('static', filename='js/agent.js') }}"></script>
+<script>
+    // Trigger quick search directly from url if passed
+    document.addEventListener("DOMContentLoaded", () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const autoTopic = urlParams.get('new_topic');
+        if (autoTopic && !window.currentSearchId) {
+            document.getElementById('topicInput').value = autoTopic;
+            startResearchStream();
+        }
+        
+        // Render quiz if data exists
+        if(window.rawQuizData) {
+            renderQuiz(window.rawQuizData);
+        }
+    });
+</script>
+{% endblock %}

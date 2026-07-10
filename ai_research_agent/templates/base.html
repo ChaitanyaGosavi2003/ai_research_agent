@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="{{ session.get('theme', 'dark') }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AI Research Assistant Agent{% endblock %}</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Custom Style Sheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <!-- Background Decorative Gradients -->
+    <div class="glass-bg-glow glow-1"></div>
+    <div class="glass-bg-glow glow-2"></div>
+    
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="appSidebar">
+            <div class="sidebar-brand">
+                <i data-lucide="cpu" class="brand-icon"></i>
+                <span class="brand-text">Research.AI</span>
+            </div>
+            
+            <nav class="sidebar-nav">
+                {% if g.user %}
+                <a href="{{ url_for('dashboard.index') }}" class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="{{ url_for('agent.index') }}" class="nav-link {% if request.endpoint == 'agent.index' %}active{% endif %}">
+                    <i data-lucide="search-code"></i>
+                    <span>Research Agent</span>
+                </a>
+                {% else %}
+                <a href="{{ url_for('landing') }}" class="nav-link {% if request.endpoint == 'landing' %}active{% endif %}">
+                    <i data-lucide="home"></i>
+                    <span>Home</span>
+                </a>
+                <a href="{{ url_for('auth.login') }}" class="nav-link {% if request.endpoint == 'auth.login' %}active{% endif %}">
+                    <i data-lucide="log-in"></i>
+                    <span>Login</span>
+                </a>
+                <a href="{{ url_for('auth.register') }}" class="nav-link {% if request.endpoint == 'auth.register' %}active{% endif %}">
+                    <i data-lucide="user-plus"></i>
+                    <span>Register</span>
+                </a>
+                {% endif %}
+            </nav>
+            
+            <div class="sidebar-footer">
+                {% if g.user %}
+                <div class="user-profile">
+                    <i data-lucide="user" class="avatar-icon"></i>
+                    <div class="user-info">
+                        <span class="user-name">{{ g.user['username'] }}</span>
+                        <span class="user-role">Researcher</span>
+                    </div>
+                </div>
+                <a href="{{ url_for('auth.logout') }}" class="logout-btn">
+                    <i data-lucide="log-out"></i>
+                    <span>Logout</span>
+                </a>
+                {% else %}
+                <div class="guest-info">
+                    <span>Welcome, Guest</span>
+                </div>
+                {% endif %}
+            </div>
+        </aside>
+        
+        <!-- Main Content Area -->
+        <main class="main-layout">
+            <header class="app-header">
+                <button class="mobile-toggle" id="sidebarToggle">
+                    <i data-lucide="menu"></i>
+                </button>
+                
+                <h1 class="page-title">{% block page_title %}AI Research Assistant{% endblock %}</h1>
+                
+                <div class="header-actions">
+                    <!-- Live/Simulated Indicator -->
+                    {% if g.user %}
+                        {% if config.GEMINI_API_KEY or config.GOOGLE_API_KEY %}
+                            <div class="api-badge live" title="Connected to Gemini API Live">
+                                <span class="badge-dot"></span> Live AI
+                            </div>
+                        {% else %}
+                            <div class="api-badge simulated" title="Running in simulated mode (no Gemini API Key)">
+                                <span class="badge-dot"></span> Simulated AI
+                            </div>
+                        {% endif %}
+                    {% endif %}
+
+                    <!-- Theme Toggle -->
+                    <button class="theme-toggle-btn" id="themeToggle" title="Toggle Theme">
+                        <i data-lucide="sun" class="sun-icon"></i>
+                        <i data-lucide="moon" class="moon-icon"></i>
+                    </button>
+                </div>
+            </header>
+            
+            <div class="content-body">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+    
+    <!-- Toast Containers -->
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <!-- Global JS Main -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    
+    <script>
+        // Flush Flask flash messages to Toast system
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        showToast("{{ message }}", "{{ category }}");
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        });
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>
